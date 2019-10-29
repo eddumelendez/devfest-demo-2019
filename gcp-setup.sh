@@ -19,7 +19,7 @@ gcloud services enable redis.googleapis.com
 
 gcloud redis instances create demo --size=1 --region=${GCP_REGION}
 
-gcloud redis instances describe demo --region=${GCP_REGION} | grep host
+export GCP_REDIS_IP=$(gcloud redis instances describe demo --region=${GCP_REGION} --format="json" | jq -r '.host')
 
 echo "Configuring Runtime"
 
@@ -61,4 +61,14 @@ gcloud compute instances set-service-account instance-1 --zone=us-central1-c --s
 
 gcloud compute instances start instance-1
 
-gcloud compute scp target/devfest-demo-2019-0.0.1-SNAPSHOT.jar instance-1:~
+export GCP_VM_IP=$(gcloud compute instances describe instance-1 --format="json" | jq -r '.networkInterfaces[0].accessConfigs[0].natIP')
+
+echo "Your ip is ${GCP_VM_IP}"
+
+gcloud compute firewall-rules create demoservice --allow tcp:8080
+
+gcloud compute scp target/devfest-demo-2019-0.0.1-SNAPSHOT.jar instance-1:~/
+
+gcloud compute ssh instance-1 --command "sudo apt-get -y install openjdk-8-jdk-headless"
+
+gcloud compute ssh instance-1 --command "java -jar -Dspring.profiles.active=cloud -Dspring.redis.host=${GCP_REDIS_IP} ~/devfest-demo-2019-0.0.1-SNAPSHOT.jar &"
